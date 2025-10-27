@@ -1,0 +1,91 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: infrastructure/local/postgres/Dockerfile
+    container_name: keta-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: keta_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/local/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./infrastructure/local/schema.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
+      - ./infrastructure/local/init-age.sql:/docker-entrypoint-initdb.d/03-init-age.sql:ro
+    networks:
+      - keta-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: ./infrastructure/local/Dockerfile.api
+    container_name: keta-api
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/keta_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=INFO
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./packages:/app/packages
+      - ./pyproject.toml:/app/pyproject.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - keta-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    command: uvicorn packages.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  ui:
+    build:
+      context: .
+      dockerfile: ./infrastructure/local/Dockerfile.ui
+    container_name: keta-ui
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./packages/ui:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - keta-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data:
+    driver: local
+    name: keta_postgres_data
+
+networks:
+  keta-network:
+    driver: bridge
+    name: keta-network
