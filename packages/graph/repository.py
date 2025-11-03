@@ -102,8 +102,7 @@ class KnowledgeGraphRepository(GraphRepository):
 
         cypher = f"""
             MERGE (d:Document {{id: '{doc_id}', chunk_index: {chunk_index}}})
-            ON CREATE SET
-                d.title = '{safe_title}',
+            SET d.title = '{safe_title}',
                 d.text_snippet = '{safe_snippet}',
                 d.created_at = '{now}'
             RETURN d

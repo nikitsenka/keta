@@ -79,3 +79,30 @@ export interface Relationship {
   confidence: number;
   source_ids: string[];
 }
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  properties: Record<string, any>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+  properties: Record<string, any>;
+}
+
+export interface GraphVisualizationData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface GraphStats {
+  objective_id: string;
+  total_entities: number;
+  total_relationships: number;
+  entity_type_counts: Record<string, number>;
+  relationship_type_counts: Record<string, number>;
+}

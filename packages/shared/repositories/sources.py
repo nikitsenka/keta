@@ -82,6 +82,8 @@ class SourcesRepository(TableRepository):
         Returns:
             Updated source record or None
         """
+        from datetime import datetime
+
         updates = {"extraction_status": status}
 
         if progress is not None:
@@ -91,7 +93,7 @@ class SourcesRepository(TableRepository):
             updates["extraction_error"] = error
 
         if status == "COMPLETED":
-            updates["processed_at"] = "NOW()"
+            updates["processed_at"] = datetime.utcnow()
 
         return await self.update(source_id, updates)
 

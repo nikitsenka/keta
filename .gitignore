@@ -75,3 +75,4 @@ dist-ssr/
 Thumbs.db
 .vscode
 CLAUDE.md
+.mcp.json

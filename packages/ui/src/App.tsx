@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ObjectivesPage from './pages/ObjectivesPage';
 import ObjectiveDetailPage from './pages/ObjectiveDetailPage';
 import ChatPage from './pages/ChatPage';
+import GraphPage from './pages/GraphPage';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Routes>
             <Route path="/" element={<ObjectivesPage />} />
             <Route path="/objectives/:objectiveId" element={<ObjectiveDetailPage />} />
+            <Route path="/graph/:objectiveId" element={<GraphPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/about" element={<AboutPage />} />
           </Routes>

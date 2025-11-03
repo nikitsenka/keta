@@ -11,17 +11,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from packages.api.routers import objectives, sources, chat, health
+from packages.api.routers import objectives, sources, chat, health, graph
 from packages.shared.config import get_settings
 from packages.shared.database import db_pool
 from packages.shared.models import ErrorResponse
 
+# Get settings to configure logging
+settings = get_settings()
+
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info(f"Logging configured with level: {settings.log_level.upper()}")
 
 
 @asynccontextmanager
@@ -31,7 +35,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     Handles startup and shutdown events.
     """
-    settings = get_settings()
     logger.info("Starting KETA API...")
 
     # Initialize database pool
@@ -63,7 +66,6 @@ app = FastAPI(
 )
 
 # Configure CORS
-settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -101,6 +103,7 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(objectives.router, prefix=settings.api_prefix, tags=["Objectives"])
 app.include_router(sources.router, prefix=settings.api_prefix, tags=["Sources"])
 app.include_router(chat.router, prefix=settings.api_prefix, tags=["Chat"])
+app.include_router(graph.router, prefix=settings.api_prefix, tags=["Graph"])
 
 
 @app.get("/")

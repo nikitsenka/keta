@@ -5,8 +5,9 @@ Sources CRUD endpoints.
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
+from packages.agents.extraction_agent import ExtractionAgent
 from packages.shared.database import DatabasePool, get_db_pool
 from packages.shared.models import (
     ExtractionStatus,
@@ -20,6 +21,47 @@ from packages.shared.repositories.sources import SourcesRepository
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def run_extraction_task(source_id: UUID, db_pool: DatabasePool) -> None:
+    """
+    Background task that executes extraction on a source document.
+
+    Args:
+        source_id: Source UUID to extract
+        db_pool: Database connection pool
+    """
+    try:
+        logger.info(f"Starting extraction task for source {source_id}")
+
+        agent = ExtractionAgent(db_pool)
+
+        state = {
+            "source_id": source_id,
+            "agent_path": [],
+            "errors": [],
+            "retry_count": 0,
+        }
+
+        result_state = await agent.execute(state)
+
+        if result_state.get("errors"):
+            logger.warning(f"Extraction completed with errors: {result_state['errors']}")
+        else:
+            logger.info(f"Extraction task completed successfully for source {source_id}")
+
+    except Exception as e:
+        logger.error(f"Extraction task failed for source {source_id}: {e}", exc_info=True)
+
+        try:
+            sources_repo = SourcesRepository(db_pool)
+            await sources_repo.update_extraction_status(
+                source_id,
+                ExtractionStatus.FAILED.value,
+                error=str(e)
+            )
+        except Exception as update_error:
+            logger.error(f"Failed to update extraction status: {update_error}")
 
 
 def get_sources_repo(
@@ -187,30 +229,32 @@ async def delete_source(
 @router.post("/sources/{source_id}/extract", status_code=202)
 async def trigger_extraction(
     source_id: UUID,
+    background_tasks: BackgroundTasks,
     sources_repo: SourcesRepository = Depends(get_sources_repo),
+    db_pool: DatabasePool = Depends(get_db_pool),
 ) -> dict:
     """
     Trigger extraction for a source.
 
     Args:
         source_id: Source UUID
+        background_tasks: FastAPI background tasks manager
+        sources_repo: Sources repository
+        db_pool: Database connection pool
 
     Returns:
         Extraction trigger confirmation
     """
     try:
-        # Check if source exists
         source = await sources_repo.get_by_id(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
 
-        # Update status to PROCESSING
         await sources_repo.update_extraction_status(
             source_id, ExtractionStatus.PROCESSING.value, {"current_stage": "initializing"}
         )
 
-        # TODO: Trigger async extraction task
-        # For now, just return confirmation
+        background_tasks.add_task(run_extraction_task, source_id, db_pool)
 
         return {
             "message": "Extraction triggered",

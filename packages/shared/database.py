@@ -186,6 +186,8 @@ class DatabasePool:
         """
         # AGE requires queries to be wrapped in the cypher function
         query = f"SELECT * FROM cypher('{graph_name}', $$ {cypher_query} $$) as (result agtype);"
+        logger.debug(f"[DB] Executing Cypher query on graph '{graph_name}':\n{cypher_query}")
+        logger.debug(f"[DB] Full SQL query:\n{query}")
         return await self.fetch(query)
 
     @property

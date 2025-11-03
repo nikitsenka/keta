@@ -3,6 +3,7 @@ Base repository classes for KETA.
 """
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, TypeVar
 from uuid import UUID
@@ -187,6 +188,69 @@ class GraphRepository(BaseRepository[T], Generic[T]):
         super().__init__(db_pool)
         self.graph_name = graph_name
 
+    @staticmethod
+    def _parse_agtype_value(value: Any) -> Any:
+        """
+        Recursively parse agtype values (vertices, edges, or nested objects).
+
+        Args:
+            value: Value to parse (could be string, dict, list)
+
+        Returns:
+            Parsed value
+        """
+        if isinstance(value, str):
+            if '::vertex' in value or '::edge' in value:
+                json_str = value.replace('::vertex', '').replace('::edge', '').strip()
+                try:
+                    parsed = json.loads(json_str)
+                    if isinstance(parsed, dict) and 'properties' in parsed:
+                        return parsed['properties']
+                    return parsed
+                except (json.JSONDecodeError, Exception):
+                    return value
+            return value
+        elif isinstance(value, dict):
+            return {k: GraphRepository._parse_agtype_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [GraphRepository._parse_agtype_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _parse_agtype(agtype_str: str) -> Optional[dict]:
+        """
+        Parse Apache AGE agtype format to extract properties.
+
+        Args:
+            agtype_str: Agtype string (e.g., '{...}::vertex' or '{...}::edge')
+
+        Returns:
+            Properties dict or None if parsing fails
+        """
+        if not agtype_str or not isinstance(agtype_str, str):
+            return None
+
+        try:
+            if '::vertex' in agtype_str:
+                json_str = agtype_str.replace('::vertex', '').strip()
+            elif '::edge' in agtype_str:
+                json_str = agtype_str.replace('::edge', '').strip()
+            else:
+                json_str = agtype_str.strip()
+
+            parsed = json.loads(json_str)
+
+            if isinstance(parsed, dict) and 'properties' in parsed:
+                return parsed['properties']
+
+            if isinstance(parsed, dict):
+                return GraphRepository._parse_agtype_value(parsed)
+
+            return parsed if isinstance(parsed, dict) else None
+
+        except (json.JSONDecodeError, Exception):
+            return None
+
     async def execute_cypher(self, cypher_query: str, parse_results: bool = True) -> list:
         """
         Execute a Cypher query.
@@ -198,10 +262,26 @@ class GraphRepository(BaseRepository[T], Generic[T]):
         Returns:
             Query results
         """
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[GraphRepo] Executing Cypher on graph '{self.graph_name}':\n{cypher_query}")
+        
         results = await self.db_pool.execute_cypher(self.graph_name, cypher_query)
+        logger.debug(f"[GraphRepo] Query returned {len(results)} raw results")
+        
         if parse_results and results:
-            # Parse agtype results (simplified for POC)
-            return [dict(row) for row in results]
+            parsed_results = []
+            for row in results:
+                row_dict = dict(row)
+
+                if 'result' in row_dict:
+                    properties = self._parse_agtype(row_dict['result'])
+                    if properties:
+                        parsed_results.append(properties)
+                else:
+                    parsed_results.append(row_dict)
+
+            logger.debug(f"[GraphRepo] Parsed to {len(parsed_results)} results")
+            return parsed_results
         return results
 
     async def get_by_id(self, id: UUID) -> Optional[T]:

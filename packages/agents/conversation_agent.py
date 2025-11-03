@@ -89,10 +89,12 @@ Available relationships: {relationships}""",
             # Step 1: Extract key terms from query for entity search
             search_terms = await self._extract_search_terms(query)
             self._log_execution(f"Extracted search terms: {search_terms}")
+            logger.debug(f"[ConversationAgent] Query: '{query}' -> Search terms: {search_terms}")
 
             # Step 2: Search for relevant entities
             relevant_entities = []
             for term in search_terms[:5]:  # Limit to first 5 terms
+                logger.debug(f"[ConversationAgent] Searching entities for term: '{term}'")
                 entities = await self.entity_search.search_by_keyword(term, limit=5)
                 relevant_entities.extend(entities)
 
@@ -106,17 +108,20 @@ Available relationships: {relationships}""",
                     unique_entities.append(entity)
 
             self._log_execution(f"Found {len(unique_entities)} relevant entities")
+            logger.debug(f"[ConversationAgent] Found {len(unique_entities)} unique entities after deduplication")
 
             # Step 3: Get relationships between found entities
             relationships = []
             for entity in unique_entities[:10]:  # Limit for performance
                 entity_id = UUID(entity["id"])
+                logger.debug(f"[ConversationAgent] Fetching relationships for entity: {entity.get('name')} ({entity_id})")
                 rels = await self.relationship_traversal.get_related_entities(
                     entity_id, max_depth=1, limit=10
                 )
                 relationships.extend(rels)
 
             self._log_execution(f"Found {len(relationships)} relationships")
+            logger.debug(f"[ConversationAgent] Total relationships found: {len(relationships)}")
 
             # Step 4: Generate answer using LLM with graph context
             entities_context = self._format_entities(unique_entities)

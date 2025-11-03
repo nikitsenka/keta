@@ -3,7 +3,7 @@
  */
 
 import axios from 'axios';
-import type { Objective, Source, ChatSession, Message } from '../types';
+import type { Objective, Source, ChatSession, Message, Entity, GraphVisualizationData, GraphStats } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_PREFIX = '/api/v1';
@@ -57,6 +57,16 @@ export const chatAPI = {
 // Health API
 export const healthAPI = {
   check: () => client.get('/health'),
+};
+
+// Graph API
+export const graphAPI = {
+  searchEntities: (objectiveId: string, params?: { name?: string; entity_type?: string; limit?: number }) =>
+    client.get<Entity[]>('/graph/entities', { params: { objective_id: objectiveId, ...params } }),
+  getEntityNeighborhood: (entityId: string, depth: number = 1) =>
+    client.get<GraphVisualizationData>(`/graph/entities/${entityId}/neighborhood`, { params: { depth } }),
+  getStatistics: (objectiveId: string) =>
+    client.get<GraphStats>(`/graph/statistics/${objectiveId}`),
 };
 
 export default client;

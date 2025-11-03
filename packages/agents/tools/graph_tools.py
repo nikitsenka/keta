@@ -64,6 +64,7 @@ class EntitySearchTool:
         """
 
         try:
+            logger.debug(f"[EntitySearchTool] Searching entities by type: {entity_type}, limit: {limit}")
             results = await self.graph_repo.execute_cypher(cypher)
             logger.info(f"Found {len(results)} entities of type {entity_type}")
             return results
@@ -94,6 +95,7 @@ class EntitySearchTool:
         """
 
         try:
+            logger.debug(f"[EntitySearchTool] Searching entities by keyword: '{keyword}', limit: {limit}")
             results = await self.graph_repo.execute_cypher(cypher)
             logger.info(f"Found {len(results)} entities matching keyword '{keyword}'")
             return results
@@ -131,12 +133,17 @@ class RelationshipTraversalTool:
             List of related entities with relationship info
         """
         cypher = f"""
-            MATCH path = (e1:Entity {{id: '{entity_id}'}})-[r:RELATED_TO*1..{max_depth}]-(e2:Entity)
-            RETURN e1, r, e2
+            MATCH (e1:Entity {{id: '{entity_id}'}})-[r]-(e2:Entity)
+            RETURN {{
+                source_entity: e1,
+                relationship: r,
+                target_entity: e2
+            }}
             LIMIT {limit}
         """
 
         try:
+            logger.debug(f"[RelationshipTraversalTool] Getting related entities for: {entity_id}, max_depth: {max_depth}, limit: {limit}")
             results = await self.graph_repo.execute_cypher(cypher)
             logger.info(f"Found {len(results)} related entities for {entity_id}")
             return results
@@ -158,8 +165,12 @@ class RelationshipTraversalTool:
             List of relationships
         """
         cypher = f"""
-            MATCH (e1:Entity {{id: '{entity1_id}'}})-[r:RELATED_TO]-(e2:Entity {{id: '{entity2_id}'}})
-            RETURN e1, r, e2
+            MATCH (e1:Entity {{id: '{entity1_id}'}})-[r]-(e2:Entity {{id: '{entity2_id}'}})
+            RETURN {{
+                source_entity: e1,
+                relationship: r,
+                target_entity: e2
+            }}
         """
 
         try:

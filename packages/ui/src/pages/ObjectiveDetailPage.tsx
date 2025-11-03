@@ -98,6 +98,13 @@ export default function ObjectiveDetailPage() {
             </button>
             <button
               className="button button-primary"
+              onClick={() => navigate(`/graph/${objectiveId}`)}
+              disabled={!sources || sources.length === 0}
+            >
+              View Knowledge Graph
+            </button>
+            <button
+              className="button button-primary"
               onClick={() => createSessionMutation.mutate()}
               disabled={!sources || sources.length === 0}
             >

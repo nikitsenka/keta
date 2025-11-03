@@ -130,7 +130,7 @@ class ExtractionAgent(BaseAgent):
                     # Check if entity already exists (by name)
                     existing = await self.graph_repo.find_entity_by_name(entity["name"])
 
-                    if existing:
+                    if existing and "id" in existing:
                         entity_id = UUID(existing["id"])
                         logger.info(f"Entity '{entity['name']}' already exists")
                     else:
