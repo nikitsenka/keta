@@ -217,26 +217,29 @@ class GraphRepository(BaseRepository[T], Generic[T]):
         return value
 
     @staticmethod
-    def _parse_agtype(agtype_str: str) -> Optional[dict]:
+    def _parse_agtype(agtype_str: str, strict: bool = False) -> Optional[dict]:
         """
         Parse Apache AGE agtype format to extract properties.
 
         Args:
             agtype_str: Agtype string (e.g., '{...}::vertex' or '{...}::edge')
+            strict: If True, raise exceptions on parse failure. If False, return None and log warning.
 
         Returns:
-            Properties dict or None if parsing fails
+            Properties dict or None if parsing fails (when strict=False)
+
+        Raises:
+            ValueError: If strict=True and parsing fails
         """
+        logger = logging.getLogger(__name__)
+
         if not agtype_str or not isinstance(agtype_str, str):
+            if strict:
+                raise ValueError(f"Invalid agtype input: expected string, got {type(agtype_str)}")
             return None
 
         try:
-            if '::vertex' in agtype_str:
-                json_str = agtype_str.replace('::vertex', '').strip()
-            elif '::edge' in agtype_str:
-                json_str = agtype_str.replace('::edge', '').strip()
-            else:
-                json_str = agtype_str.strip()
+            json_str = agtype_str.replace('::vertex', '').replace('::edge', '').strip()
 
             parsed = json.loads(json_str)
 
@@ -244,11 +247,30 @@ class GraphRepository(BaseRepository[T], Generic[T]):
                 return parsed['properties']
 
             if isinstance(parsed, dict):
-                return GraphRepository._parse_agtype_value(parsed)
+                parsed_value = GraphRepository._parse_agtype_value(parsed)
+                if parsed_value:
+                    return parsed_value
+                return parsed
 
             return parsed if isinstance(parsed, dict) else None
 
-        except (json.JSONDecodeError, Exception):
+        except json.JSONDecodeError as e:
+            sample = agtype_str[:200] if len(agtype_str) > 200 else agtype_str
+            logger.warning(
+                f"Failed to parse AGE agtype as JSON: {e}. "
+                f"Sample of unparsed data: {sample}"
+            )
+            if strict:
+                raise ValueError(f"Failed to parse AGE agtype: {e}") from e
+            return None
+        except Exception as e:
+            sample = agtype_str[:200] if len(agtype_str) > 200 else agtype_str
+            logger.warning(
+                f"Unexpected error parsing AGE agtype: {e}. "
+                f"Sample of unparsed data: {sample}"
+            )
+            if strict:
+                raise
             return None
 
     async def execute_cypher(self, cypher_query: str, parse_results: bool = True) -> list:
@@ -270,17 +292,32 @@ class GraphRepository(BaseRepository[T], Generic[T]):
         
         if parse_results and results:
             parsed_results = []
-            for row in results:
+            skipped_count = 0
+
+            for i, row in enumerate(results):
                 row_dict = dict(row)
 
                 if 'result' in row_dict:
                     properties = self._parse_agtype(row_dict['result'])
                     if properties:
                         parsed_results.append(properties)
+                    else:
+                        skipped_count += 1
+                        logger.warning(
+                            f"[GraphRepo] Row {i} was skipped due to parse failure. "
+                            f"Query: {cypher_query[:100]}..."
+                        )
                 else:
                     parsed_results.append(row_dict)
 
             logger.debug(f"[GraphRepo] Parsed to {len(parsed_results)} results")
+
+            if skipped_count > 0:
+                logger.warning(
+                    f"[GraphRepo] {skipped_count} of {len(results)} rows were skipped due to parsing failures. "
+                    f"Graph: '{self.graph_name}', Query: {cypher_query[:150]}..."
+                )
+
             return parsed_results
         return results
 

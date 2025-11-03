@@ -223,7 +223,12 @@ Available relationships: {relationships}""",
         Format relationships for LLM context.
 
         Args:
-            relationships: List of relationship dictionaries
+            relationships: List of relationship dictionaries with structure:
+                {
+                    'source_entity': {'id': '...', 'name': '...', 'type': '...'},
+                    'relationship': {'relationship_type': '...', 'description': '...', 'confidence': ...},
+                    'target_entity': {'id': '...', 'name': '...', 'type': '...'}
+                }
 
         Returns:
             Formatted string
@@ -232,10 +237,31 @@ Available relationships: {relationships}""",
             return "No relationships found."
 
         formatted = []
-        for rel in relationships[:20]:  # Limit to 20
-            # Try to extract entity and relationship info
-            # Format depends on query results structure
-            formatted.append(f"- Relationship: {rel}")
+        for rel in relationships[:20]:
+            try:
+                source = rel.get("source_entity", {}).get("properties", {})
+                relationship = rel.get("relationship", {}).get("properties", {})
+                target = rel.get("target_entity", {}).get("properties", {})
+
+                source_name = source.get("name", "Unknown")
+                source_type = source.get("type", "Unknown")
+                target_name = target.get("name", "Unknown")
+                target_type = target.get("type", "Unknown")
+
+                rel_type = relationship.get("relationship_type", "RELATED_TO")
+                rel_desc = relationship.get("description", "")
+                confidence = relationship.get("confidence", 0.0)
+
+                rel_text = f"- {source_name} ({source_type}) {rel_type} {target_name} ({target_type})"
+                if rel_desc:
+                    rel_text += f': "{rel_desc}"'
+                rel_text += f" (confidence: {confidence:.2f})"
+
+                formatted.append(rel_text)
+
+            except Exception as e:
+                logger.warning(f"Failed to format relationship: {e}, data: {rel}")
+                continue
 
         return "\n".join(formatted)
 
