@@ -10,6 +10,15 @@ from uuid import UUID
 
 from packages.shared.database import DatabasePool
 from packages.shared.repositories.base import GraphRepository
+from packages.shared.models.age import (
+    parse_agtype_to_vertex,
+    parse_agtype_to_edge,
+    validate_entity_properties,
+    validate_relationship_properties,
+    AgeParseError,
+    EntityProperties,
+    RelationshipResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -229,38 +238,61 @@ class KnowledgeGraphRepository(GraphRepository):
         except Exception as e:
             logger.warning(f"Failed to link entity to source: {e}")
 
-    async def find_entity_by_name(self, name: str) -> Optional[dict[str, Any]]:
+    async def find_entity_by_name(self, name: str) -> Optional[EntityProperties]:
         """
-        Find an entity by name.
+        Find an entity by name with runtime validation.
 
         Args:
             name: Entity name
 
         Returns:
-            Entity data or None
+            Validated EntityProperties or None
+            
+        Raises:
+            AgeParseError: If entity data validation fails
         """
         safe_name = name.replace("'", "\\'")
         cypher = f"MATCH (e:Entity {{name: '{safe_name}'}}) RETURN e LIMIT 1"
 
         try:
             results = await self.execute_cypher(cypher)
-            return results[0] if results else None
+            if not results:
+                return None
+            
+            # Parse and validate the AGE vertex
+            vertex = parse_agtype_to_vertex(results[0])
+            
+            # Validate entity-specific properties
+            entity_props = validate_entity_properties(vertex.properties)
+            
+            logger.info(f"Found and validated entity: {entity_props.name} ({entity_props.type})")
+            return entity_props
+            
+        except AgeParseError as e:
+            logger.error(
+                f"Failed to validate entity '{name}': {e.message}\n"
+                f"Context: {e.context}"
+            )
+            raise
         except Exception as e:
             logger.error(f"Failed to find entity {name}: {e}")
             return None
 
     async def get_entities_by_source(
         self, source_id: UUID, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    ) -> list[EntityProperties]:
         """
-        Get all entities extracted from a source.
+        Get all entities extracted from a source with validation.
 
         Args:
             source_id: Source UUID
             limit: Maximum number of entities
 
         Returns:
-            List of entities
+            List of validated EntityProperties
+            
+        Raises:
+            AgeParseError: If any entity fails validation
         """
         cypher = f"""
             MATCH (e:Entity)-[:EXTRACTED_FROM]->(d:Document {{id: '{source_id}'}})
@@ -269,23 +301,43 @@ class KnowledgeGraphRepository(GraphRepository):
         """
 
         try:
-            return await self.execute_cypher(cypher)
+            results = await self.execute_cypher(cypher)
+            validated_entities = []
+            
+            for result in results:
+                # Parse and validate each entity
+                vertex = parse_agtype_to_vertex(result)
+                entity_props = validate_entity_properties(vertex.properties)
+                validated_entities.append(entity_props)
+            
+            logger.info(f"Retrieved and validated {len(validated_entities)} entities for source {source_id}")
+            return validated_entities
+            
+        except AgeParseError as e:
+            logger.error(
+                f"Failed to validate entities for source {source_id}: {e.message}\n"
+                f"Context: {e.context}"
+            )
+            raise
         except Exception as e:
             logger.error(f"Failed to get entities for source {source_id}: {e}")
             return []
 
     async def get_relationships_by_source(
         self, source_id: UUID, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    ) -> list[RelationshipResult]:
         """
-        Get all relationships from a source.
+        Get all relationships from a source with validation.
 
         Args:
             source_id: Source UUID
             limit: Maximum number of relationships
 
         Returns:
-            List of relationships
+            List of validated RelationshipResult objects
+            
+        Raises:
+            AgeParseError: If any relationship fails validation
         """
         cypher = f"""
             MATCH (e1:Entity)-[r:RELATED_TO]->(e2:Entity)
@@ -295,7 +347,109 @@ class KnowledgeGraphRepository(GraphRepository):
         """
 
         try:
-            return await self.execute_cypher(cypher)
+            results = await self.execute_cypher(cypher)
+            validated_relationships = []
+            
+            for result in results:
+                # Parse all three components
+                source_vertex = parse_agtype_to_vertex(result['e1'])
+                edge = parse_agtype_to_edge(result['r'])
+                target_vertex = parse_agtype_to_vertex(result['e2'])
+                
+                # Create validated relationship result
+                rel_result = RelationshipResult(
+                    source_entity=source_vertex,
+                    relationship=edge,
+                    target_entity=target_vertex
+                )
+                
+                # Validate properties to ensure data integrity
+                _ = rel_result.get_source_properties()
+                _ = rel_result.get_relationship_properties()
+                _ = rel_result.get_target_properties()
+                
+                validated_relationships.append(rel_result)
+            
+            logger.info(f"Retrieved and validated {len(validated_relationships)} relationships for source {source_id}")
+            return validated_relationships
+            
+        except AgeParseError as e:
+            logger.error(
+                f"Failed to validate relationships for source {source_id}: {e.message}\n"
+                f"Context: {e.context}"
+            )
+            raise
         except Exception as e:
             logger.error(f"Failed to get relationships for source {source_id}: {e}")
             return []
+
+    async def get_entity_relationships_validated(
+        self, entity_id: UUID, limit: int = 100
+    ) -> list[RelationshipResult]:
+        """
+        Get relationships for a specific entity with full validation.
+        
+        This method demonstrates the complete validation flow for relationship queries.
+
+        Args:
+            entity_id: Entity UUID
+            limit: Maximum number of relationships
+
+        Returns:
+            List of validated RelationshipResult objects
+            
+        Raises:
+            AgeParseError: If any data fails validation
+        """
+        cypher = f"""
+            MATCH (e1:Entity {{id: '{entity_id}'}})-[r:RELATED_TO]->(e2:Entity)
+            RETURN e1, r, e2
+            LIMIT {limit}
+        """
+
+        try:
+            results = await self.execute_cypher(cypher)
+            validated_relationships = []
+            
+            for result in results:
+                # Parse and validate all components
+                source_vertex = parse_agtype_to_vertex(result['e1'])
+                edge = parse_agtype_to_edge(result['r'])
+                target_vertex = parse_agtype_to_vertex(result['e2'])
+                
+                # Create relationship result
+                rel_result = RelationshipResult(
+                    source_entity=source_vertex,
+                    relationship=edge,
+                    target_entity=target_vertex
+                )
+                
+                # Validate all properties (will raise AgeParseError if invalid)
+                source_props = rel_result.get_source_properties()
+                rel_props = rel_result.get_relationship_properties()
+                target_props = rel_result.get_target_properties()
+                
+                logger.debug(
+                    f"Validated relationship: {source_props.name} "
+                    f"--[{rel_props.relationship_type}]--> {target_props.name}"
+                )
+                
+                validated_relationships.append(rel_result)
+            
+            logger.info(
+                f"Retrieved and validated {len(validated_relationships)} "
+                f"relationships for entity {entity_id}"
+            )
+            return validated_relationships
+            
+        except AgeParseError as e:
+            logger.error(
+                f"Validation failed for entity {entity_id} relationships: {e.message}\n"
+                f"Context: {e.context}\n"
+                f"Raw data: {e.raw_data[:100] if e.raw_data else 'N/A'}"
+            )
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get relationships for entity {entity_id}: {e}")
+            return []
+

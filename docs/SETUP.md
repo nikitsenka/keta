@@ -148,24 +148,5 @@ curl -X POST http://localhost:8000/api/v1/chat/sessions/{session_id}/messages \
   }'
 ```
 
-## Testing
 
-### Run Behave API Integration Tests
-
-```bash
-# Install dev dependencies (includes behave)
-pip install -e ".[dev]"
-
-# Ensure services are running
-docker-compose up -d
-
-# Run all Behave tests
-python -m behave features/
-
-# Run specific feature
-python -m behave features/objectives.feature
-
-# Run with verbose output
-python -m behave features/ -v
-```
 
