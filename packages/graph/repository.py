@@ -11,14 +11,13 @@ from uuid import UUID
 from packages.shared.database import DatabasePool
 from packages.shared.repositories.base import GraphRepository
 from packages.shared.models.age import (
-    parse_agtype_to_vertex,
     parse_agtype_to_edge,
     validate_entity_properties,
     validate_relationship_properties,
-    AgeParseError,
     EntityProperties,
     RelationshipResult,
 )
+from packages.shared.models.age import parse_agtype_to_vertex
 
 logger = logging.getLogger(__name__)
 
@@ -259,23 +258,15 @@ class KnowledgeGraphRepository(GraphRepository):
             if not results:
                 return None
             
-            # Parse and validate the AGE vertex
-            vertex = parse_agtype_to_vertex(results[0])
-            
-            # Validate entity-specific properties
-            entity_props = validate_entity_properties(vertex.properties)
+            # results[0] is already the properties dict (extracted by execute_cypher)
+            # Validate entity-specific properties directly
+            entity_props = validate_entity_properties(results[0])
             
             logger.info(f"Found and validated entity: {entity_props.name} ({entity_props.type})")
             return entity_props
             
-        except AgeParseError as e:
-            logger.error(
-                f"Failed to validate entity '{name}': {e.message}\n"
-                f"Context: {e.context}"
-            )
-            raise
         except Exception as e:
-            logger.error(f"Failed to find entity {name}: {e}")
+            logger.error(f"Failed to find or validate entity {name}: {e}")
             return None
 
     async def get_entities_by_source(
@@ -305,22 +296,16 @@ class KnowledgeGraphRepository(GraphRepository):
             validated_entities = []
             
             for result in results:
-                # Parse and validate each entity
-                vertex = parse_agtype_to_vertex(result)
-                entity_props = validate_entity_properties(vertex.properties)
+                # result is already the properties dict (extracted by execute_cypher)
+                # Validate entity-specific properties directly
+                entity_props = validate_entity_properties(result)
                 validated_entities.append(entity_props)
             
             logger.info(f"Retrieved and validated {len(validated_entities)} entities for source {source_id}")
             return validated_entities
             
-        except AgeParseError as e:
-            logger.error(
-                f"Failed to validate entities for source {source_id}: {e.message}\n"
-                f"Context: {e.context}"
-            )
-            raise
         except Exception as e:
-            logger.error(f"Failed to get entities for source {source_id}: {e}")
+            logger.error(f"Failed to get or validate entities for source {source_id}: {e}")
             return []
 
     async def get_relationships_by_source(
@@ -347,14 +332,17 @@ class KnowledgeGraphRepository(GraphRepository):
         """
 
         try:
-            results = await self.execute_cypher(cypher)
+            # Use parse_results=False to get raw AGE structure
+            raw_results = await self.execute_cypher(cypher, parse_results=False)
             validated_relationships = []
             
-            for result in results:
-                # Parse all three components
-                source_vertex = parse_agtype_to_vertex(result['e1'])
-                edge = parse_agtype_to_edge(result['r'])
-                target_vertex = parse_agtype_to_vertex(result['e2'])
+            for row in raw_results:
+                row_dict = dict(row)
+                
+                # Parse raw AGE structures
+                source_vertex = parse_agtype_to_vertex(row_dict.get('e1', ''))
+                edge = parse_agtype_to_edge(row_dict.get('r', ''))
+                target_vertex = parse_agtype_to_vertex(row_dict.get('e2', ''))
                 
                 # Create validated relationship result
                 rel_result = RelationshipResult(
@@ -373,14 +361,8 @@ class KnowledgeGraphRepository(GraphRepository):
             logger.info(f"Retrieved and validated {len(validated_relationships)} relationships for source {source_id}")
             return validated_relationships
             
-        except AgeParseError as e:
-            logger.error(
-                f"Failed to validate relationships for source {source_id}: {e.message}\n"
-                f"Context: {e.context}"
-            )
-            raise
         except Exception as e:
-            logger.error(f"Failed to get relationships for source {source_id}: {e}")
+            logger.error(f"Failed to get or validate relationships for source {source_id}: {e}")
             return []
 
     async def get_entity_relationships_validated(
@@ -408,14 +390,17 @@ class KnowledgeGraphRepository(GraphRepository):
         """
 
         try:
-            results = await self.execute_cypher(cypher)
+            # Use parse_results=False to get raw AGE structure
+            raw_results = await self.execute_cypher(cypher, parse_results=False)
             validated_relationships = []
             
-            for result in results:
-                # Parse and validate all components
-                source_vertex = parse_agtype_to_vertex(result['e1'])
-                edge = parse_agtype_to_edge(result['r'])
-                target_vertex = parse_agtype_to_vertex(result['e2'])
+            for row in raw_results:
+                row_dict = dict(row)
+                
+                # Parse and validate all components from raw AGE data
+                source_vertex = parse_agtype_to_vertex(row_dict.get('e1', ''))
+                edge = parse_agtype_to_edge(row_dict.get('r', ''))
+                target_vertex = parse_agtype_to_vertex(row_dict.get('e2', ''))
                 
                 # Create relationship result
                 rel_result = RelationshipResult(
@@ -442,14 +427,7 @@ class KnowledgeGraphRepository(GraphRepository):
             )
             return validated_relationships
             
-        except AgeParseError as e:
-            logger.error(
-                f"Validation failed for entity {entity_id} relationships: {e.message}\n"
-                f"Context: {e.context}\n"
-                f"Raw data: {e.raw_data[:100] if e.raw_data else 'N/A'}"
-            )
-            raise
         except Exception as e:
-            logger.error(f"Failed to get relationships for entity {entity_id}: {e}")
+            logger.error(f"Failed to get or validate relationships for entity {entity_id}: {e}")
             return []
 
