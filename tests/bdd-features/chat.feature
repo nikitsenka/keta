@@ -24,6 +24,7 @@ Feature: Chat Sessions and Messages
     And the response should contain a valid message ID
     And the message role should be "agent"
     And the message content should not be empty
+    And the message response should be faithful to the sources
 
   Scenario: Agent responds to question about uploaded document
     Given the API is running
@@ -35,6 +36,7 @@ Feature: Chat Sessions and Messages
     And the response should contain a valid message ID
     And the message role should be "agent"
     And the message content should not be empty
+    And the message response should be faithful to the sources
 
   Scenario: Extraction completes successfully with generic entities
     Given the API is running
@@ -47,3 +49,4 @@ Feature: Chat Sessions and Messages
     And the response should contain a valid message ID
     And the message role should be "agent"
     And the message content should not be empty
+    And the message response should be faithful to the sources

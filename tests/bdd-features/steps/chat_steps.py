@@ -1,6 +1,8 @@
 import requests
 from behave import given, when, then
 from uuid import UUID
+from deepeval.metrics import FaithfulnessMetric
+from deepeval.test_case import LLMTestCase
 
 
 @when('I create a chat session with the following data:')
@@ -77,6 +79,8 @@ def step_create_chat_session_with_name(context, name):
 def step_send_message(context, content):
     assert hasattr(context, 'session_id'), "No session_id found. Make sure to create a chat session first."
 
+    context.last_user_message = content
+    
     data = {
         "content": content
     }
@@ -117,6 +121,46 @@ def step_check_message_content_not_empty(context):
     assert 'content' in context.response_json, "Response does not contain 'content' field"
     content = context.response_json['content']
     assert content and len(content.strip()) > 0, "Message content is empty"
+
+
+@then('the message response should be faithful to the sources')
+def step_check_message_faithfulness(context):
+    assert context.response_json is not None, "Response JSON is None"
+    assert 'content' in context.response_json, "Response does not contain 'content' field"
+    assert 'sources' in context.response_json, "Response does not contain 'sources' field"
+    
+    actual_output = context.response_json['content']
+    sources = context.response_json.get('sources', [])
+    
+    if not sources:
+        return
+    
+    retrieval_context = [
+        f"{src.get('source_name', 'Unknown')}: {src.get('snippet', '')}"
+        for src in sources
+    ]
+    
+    if not retrieval_context or not any(ctx.strip() for ctx in retrieval_context):
+        return
+    
+    user_query = getattr(context, 'last_user_message', '')
+    
+    test_case = LLMTestCase(
+        input=user_query,
+        actual_output=actual_output,
+        retrieval_context=retrieval_context
+    )
+    
+    metric = FaithfulnessMetric(threshold=0.7)
+    
+    try:
+        metric.measure(test_case)
+        assert metric.score >= metric.threshold, (
+            f"Faithfulness score {metric.score:.2f} is below threshold {metric.threshold}. "
+            f"Reason: {metric.reason}"
+        )
+    except Exception as e:
+        raise AssertionError(f"Faithfulness evaluation failed: {str(e)}")
 
 
 @then('the message content should contain "{expected_text}"')
