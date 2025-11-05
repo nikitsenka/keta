@@ -8,19 +8,12 @@ load_dotenv()
 
 from datasets import load_dataset
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from packages.agents.tools.extraction import EntityExtractor
 
 sys.path.insert(0, str(Path(__file__).parent))
 from metrics import extract_entities_from_tags, calculate_f1
-
-class ExtractedEntity(BaseModel):
-    name: str = Field(description="Entity name")
-    type: str = Field(description="Entity type")
-    confidence: float = Field(description="Confidence score", ge=0.0, le=1.0)
-
-class EntityExtractionOutput(BaseModel):
-    entities: list[ExtractedEntity] = Field(description="List of extracted entities")
 
 async def main():
     print("Loading Few-NERD dataset...")
@@ -34,29 +27,7 @@ async def main():
         raise ValueError("OPENAI_API_KEY environment variable not set")
 
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0, api_key=api_key)
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert at extracting named entities from text.
-
-Extract all named entities from the provided text. Identify:
-- PERSON: Names of people
-- ORGANIZATION: Companies, institutions, organizations
-- LOCATION: Places, cities, countries, addresses
-- DATE: Dates, times, periods
-- PRODUCT: Products, services, tools
-- CONCEPT: Abstract concepts, theories, methods
-- EVENT: Named events, meetings, conferences
-
-For each entity, provide:
-- name: The exact text as it appears
-- type: One of the types above
-- confidence: How confident you are (0.0 to 1.0)
-
-Be thorough but precise. Only extract entities that are clearly identifiable."""),
-        ("human", "Text to analyze:\n\n{text}"),
-    ])
-
-    chain = prompt | llm.with_structured_output(EntityExtractionOutput)
+    entity_extractor = EntityExtractor(llm)
 
     all_results = []
     total_precision = 0.0
@@ -80,8 +51,7 @@ Be thorough but precise. Only extract entities that are clearly identifiable."""
         if len(ground_truth) > 5:
             print(f"  ... and {len(ground_truth) - 5} more")
 
-        result = await chain.ainvoke({"text": text})
-        extracted = [{"name": e.name, "type": e.type, "confidence": e.confidence} for e in result.entities]
+        extracted = await entity_extractor.extract(text)
 
         predicted_entities = set()
         for entity in extracted:
