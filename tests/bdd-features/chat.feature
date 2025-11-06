@@ -3,9 +3,13 @@ Feature: Chat Sessions and Messages
   I want to create chat sessions and send messages
   So that I can interact with the knowledge extraction system
 
-  Scenario: Create a chat session
+  Background: Shared document for multiple chat scenarios
     Given the API is running
-    And I have created an objective with name "AI Research"
+    And I have created an objective with name "Product Knowledge Base"
+    And I have uploaded a document with name "Product Release Info" and content "ProductY was released by CompanyX in March 2023. The product launch was announced in January 2023 and the final release occurred on March 15, 2023. CompanyX developed a new software framework called TechFrameworkX alongside ProductY. The company specializes in cloud computing and employs 500 people."
+    And I have triggered extraction and waited for completion
+
+  Scenario: Create a chat session
     When I create a chat session with the following data:
       | field        | value              |
       | name         | Research Discussion |
@@ -14,37 +18,18 @@ Feature: Chat Sessions and Messages
     And the chat session name should be "Research Discussion"
     And the chat session status should be "ACTIVE"
 
-  Scenario: Send a message in a chat session
-    Given the API is running
-    And I have created an objective with name "Tech Research"
-    And I have uploaded a document with name "Tech Doc" and content "CompanyA developed a new software framework called TechFrameworkX in 2023"
-    And I have created a chat session named "Tech Chat"
-    When I send a message with content "What software did CompanyA develop?"
+  Scenario: Send a message about product information
+    Given I have created a chat session named "Product Chat"
+    When I send a message with content "What software did CompanyX develop?"
     Then the response status code should be 200
     And the response should contain a valid message ID
     And the message role should be "agent"
     And the message content should not be empty
     And the message response should be faithful to the sources
 
-  Scenario: Agent responds to question about uploaded document
-    Given the API is running
-    And I have created an objective with name "Business Intelligence"
-    And I have uploaded a document with name "Company Profile" and content "OrganizationB was founded in 2020 by PersonX in CityY. The company specializes in cloud computing and employs 500 people."
-    And I have created a chat session named "Company Chat"
-    When I send a message with content "What information do we have about OrganizationB?"
-    Then the response status code should be 200
-    And the response should contain a valid message ID
-    And the message role should be "agent"
-    And the message content should not be empty
-    And the message response should be faithful to the sources
-
-  Scenario: Extraction completes successfully with generic entities
-    Given the API is running
-    And I have created an objective with name "Company Knowledge Base"
-    And I have uploaded a document with name "Company Info" and content "CorporationC was founded by PersonA in LocationZ. The company focuses on manufacturing ProductX and has operations in RegionY."
-    And I have triggered extraction and waited for completion
-    And I have created a chat session named "Knowledge Chat"
-    When I send a message with content "What do you know about companies?"
+  Scenario: Query company information from shared document
+    Given I have created a chat session named "Company Info Chat"
+    When I send a message with content "What information do we have about CompanyX?"
     Then the response status code should be 200
     And the response should contain a valid message ID
     And the message role should be "agent"
@@ -52,11 +37,7 @@ Feature: Chat Sessions and Messages
     And the message response should be faithful to the sources
 
   Scenario: Temporal query retrieves date entities correctly
-    Given the API is running
-    And I have created an objective with name "Product Timeline"
-    And I have uploaded a document with name "Release Info" and content "ProductY was released by CompanyX in March 2023. The product launch was announced in January 2023 and the final release occurred on March 15, 2023."
-    And I have triggered extraction and waited for completion
-    And I have created a chat session named "Timeline Chat"
+    Given I have created a chat session named "Timeline Chat"
     When I send a message with content "When was ProductY released?"
     Then the response status code should be 200
     And the response should contain a valid message ID
@@ -64,3 +45,19 @@ Feature: Chat Sessions and Messages
     And the message content should contain "2023"
     And the message content should contain date information
     And the message response should be faithful to the sources
+
+  Scenario: Multiple questions in same chat session
+    Given I have created a chat session named "Multi-Question Chat"
+    When I send a message with content "What is ProductY?"
+    Then the response status code should be 200
+    And the message role should be "agent"
+    And the message content should not be empty
+    When I send a message with content "When was ProductY released?"
+    Then the response status code should be 200
+    And the message role should be "agent"
+    And the message content should contain "2023"
+    And the message content should contain date information
+    When I send a message with content "Who developed ProductY?"
+    Then the response status code should be 200
+    And the message role should be "agent"
+    And the message content should contain "CompanyX"
