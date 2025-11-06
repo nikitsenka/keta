@@ -86,17 +86,32 @@ Available relationships: {relationships}""",
             return self._add_error(state, "No query provided")
 
         try:
-            # Step 1: Extract key terms from query for entity search
+            # Step 1: Detect if query is temporal
+            is_temporal = self._detect_temporal_query(query)
+            if is_temporal:
+                self._log_execution("Detected temporal query - will search for DATE entities")
+                logger.debug(f"[ConversationAgent] Temporal query detected: '{query}'")
+
+            # Step 2: Extract key terms from query for entity search
             search_terms = await self._extract_search_terms(query)
             self._log_execution(f"Extracted search terms: {search_terms}")
             logger.debug(f"[ConversationAgent] Query: '{query}' -> Search terms: {search_terms}")
 
-            # Step 2: Search for relevant entities
+            # Step 3: Search for relevant entities
             relevant_entities = []
+
+            # Search by keywords
             for term in search_terms[:5]:  # Limit to first 5 terms
                 logger.debug(f"[ConversationAgent] Searching entities for term: '{term}'")
                 entities = await self.entity_search.search_by_keyword(term, limit=5)
                 relevant_entities.extend(entities)
+
+            # If temporal query, also search for DATE entities
+            if is_temporal:
+                logger.debug("[ConversationAgent] Searching for DATE entities")
+                date_entities = await self.entity_search.search_by_type("DATE", limit=10)
+                relevant_entities.extend(date_entities)
+                self._log_execution(f"Found {len(date_entities)} DATE entities")
 
             # Deduplicate entities
             seen_ids = set()
@@ -110,7 +125,7 @@ Available relationships: {relationships}""",
             self._log_execution(f"Found {len(unique_entities)} relevant entities")
             logger.debug(f"[ConversationAgent] Found {len(unique_entities)} unique entities after deduplication")
 
-            # Step 3: Get relationships between found entities
+            # Step 4: Get relationships between found entities
             relationships = []
             for entity in unique_entities[:10]:  # Limit for performance
                 entity_id = UUID(entity["id"])
@@ -123,7 +138,7 @@ Available relationships: {relationships}""",
             self._log_execution(f"Found {len(relationships)} relationships")
             logger.debug(f"[ConversationAgent] Total relationships found: {len(relationships)}")
 
-            # Step 4: Generate answer using LLM with graph context
+            # Step 5: Generate answer using LLM with graph context
             entities_context = self._format_entities(unique_entities)
             relationships_context = self._format_relationships(relationships)
 
@@ -135,7 +150,7 @@ Available relationships: {relationships}""",
                 }
             )
 
-            # Step 5: Prepare source citations
+            # Step 6: Prepare source citations
             sources = self._extract_sources(unique_entities)
 
             # Update state
@@ -151,6 +166,36 @@ Available relationships: {relationships}""",
             logger.error(f"Conversation failed: {e}", exc_info=True)
             return self._add_error(state, f"Conversation failed: {e}")
 
+    def _detect_temporal_query(self, query: str) -> bool:
+        """
+        Detect if a query is asking about dates/times.
+
+        Args:
+            query: User query
+
+        Returns:
+            True if query is temporal, False otherwise
+        """
+        query_lower = query.lower()
+        temporal_keywords = {
+            "when",
+            "date",
+            "time",
+            "year",
+            "month",
+            "day",
+            "period",
+            "timeline",
+            "schedule",
+            "released",
+            "launched",
+            "started",
+            "ended",
+            "occurred",
+        }
+
+        return any(keyword in query_lower for keyword in temporal_keywords)
+
     async def _extract_search_terms(self, query: str) -> list[str]:
         """
         Extract key search terms from user query.
@@ -161,11 +206,8 @@ Available relationships: {relationships}""",
         Returns:
             List of search terms
         """
-        # Simple implementation: split on spaces and filter
-        # In production, use NER or more sophisticated term extraction
         terms = query.lower().split()
 
-        # Filter out common stop words
         stop_words = {
             "what",
             "when",

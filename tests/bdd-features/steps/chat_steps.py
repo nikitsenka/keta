@@ -170,3 +170,20 @@ def step_check_message_content_contains(context, expected_text):
     content = context.response_json['content']
     assert expected_text in content, \
         f"Expected message content to contain '{expected_text}', but got: {content}"
+
+
+@then('the message content should contain date information')
+def step_check_message_contains_date_info(context):
+    assert context.response_json is not None, "Response JSON is None"
+    assert 'content' in context.response_json, "Response does not contain 'content' field"
+    content = context.response_json['content'].lower()
+
+    date_keywords = [
+        'march', 'january', 'february', 'april', 'may', 'june', 'july',
+        'august', 'september', 'october', 'november', 'december',
+        '2023', '2024', 'released', 'launched', 'announced'
+    ]
+
+    has_date_info = any(keyword in content for keyword in date_keywords)
+    assert has_date_info, \
+        f"Expected message content to contain date information (months, years, or temporal verbs), but got: {context.response_json['content']}"

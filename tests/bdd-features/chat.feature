@@ -50,3 +50,17 @@ Feature: Chat Sessions and Messages
     And the message role should be "agent"
     And the message content should not be empty
     And the message response should be faithful to the sources
+
+  Scenario: Temporal query retrieves date entities correctly
+    Given the API is running
+    And I have created an objective with name "Product Timeline"
+    And I have uploaded a document with name "Release Info" and content "ProductY was released by CompanyX in March 2023. The product launch was announced in January 2023 and the final release occurred on March 15, 2023."
+    And I have triggered extraction and waited for completion
+    And I have created a chat session named "Timeline Chat"
+    When I send a message with content "When was ProductY released?"
+    Then the response status code should be 200
+    And the response should contain a valid message ID
+    And the message role should be "agent"
+    And the message content should contain "2023"
+    And the message content should contain date information
+    And the message response should be faithful to the sources
