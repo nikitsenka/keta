@@ -13,3 +13,9 @@ docker-compose up -d
 python -m behave tests/bdd-features
 
 ```
+
+# Run bulk test suite
+
+```commandline
+python -m behave -f json -o reports/chat.json -f pretty -f progress --stop tests/bdd-features/chat100.feature
+```

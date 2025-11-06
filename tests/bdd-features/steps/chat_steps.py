@@ -151,7 +151,7 @@ def step_check_message_faithfulness(context):
         retrieval_context=retrieval_context
     )
     
-    metric = FaithfulnessMetric(threshold=0.7)
+    metric = FaithfulnessMetric(threshold=0.9)
     
     try:
         metric.measure(test_case)
@@ -205,7 +205,7 @@ def step_check_message_relevance_to_answer(context, expected_answer):
         expected_output=expected_answer
     )
 
-    metric = AnswerRelevancyMetric(threshold=0.5)
+    metric = AnswerRelevancyMetric(threshold=0.9)
 
     try:
         metric.measure(test_case)
