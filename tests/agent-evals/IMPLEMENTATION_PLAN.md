@@ -37,90 +37,16 @@ Start small, prove the concept, then expand:
 
 ### Goal: Evaluate conversation agent using DeepEval framework with minimal scope
 
-#### Setup DeepEval
-- [ ] Install DeepEval (`pip install deepeval`)
-- [ ] Set up pytest structure for evaluations
-- [ ] Configure DeepEval for KETA agents
-- [ ] Verify installation with sample test
-
 #### Dataset Preparation
-- [ ] Research suitable QA dataset (SQuAD v2.0 or Natural Questions)
-- [ ] Download and explore QA dataset structure
-- [ ] Select 10 Q&A samples with context
-- [ ] Format samples for DeepEval test cases
+- [x] Research suitable QA dataset (SQuAD v2.0 or Natural Questions)
+- [x] Download and explore QA dataset structure
+- [x] Select 100 Q&A samples with context
+- [x] Generate /bdd-features/chat100.feature file to perform evaluation
 
-#### Implement DeepEval Metrics
-- [ ] Create DeepEval test cases (LLMTestCase format)
-- [ ] Implement Faithfulness metric (answer grounded in context)
-- [ ] Implement Answer Relevancy metric (answer addresses question)
-- [ ] Add Contextual Precision metric (retrieved context quality)
-- [ ] Configure metrics with appropriate thresholds
-
-#### Create Evaluation Script
-- [ ] Create `run_conversation_eval.py` with DeepEval
-- [ ] Script flow:
-  - [ ] Load 10 Q&A samples
-  - [ ] Extract knowledge from context into graph
-  - [ ] Run conversation agent with questions
-  - [ ] Create LLMTestCase for each Q&A pair
-  - [ ] Evaluate with Faithfulness, Answer Relevancy, Contextual Precision
-  - [ ] Collect and aggregate metrics
-- [ ] Add per-sample metric breakdown
-- [ ] Generate summary statistics
-
-#### Testing & Documentation
-- [ ] Run evaluation on 10 samples
-- [ ] Document baseline metrics:
-  - [ ] Faithfulness score (0-1)
-  - [ ] Answer Relevancy score (0-1)
-  - [ ] Contextual Precision score (0-1)
-- [ ] Analyze failure cases (low-scoring responses)
-- [ ] Create `CONVERSATION_BASELINE_RESULTS.md`
-- [ ] Update README.md with conversation evaluation usage
-
-**Success Criteria:**
-- DeepEval pytest tests running successfully
-- Three core metrics (Faithfulness, Answer Relevancy, Contextual Precision) calculated
-- Baseline established for 10 samples
-- Per-sample and aggregate statistics documented
-
-**Estimated Time:** 4-6 hours
 
 ---
 
-## Step 2.5: Add Trustworthiness Evaluation (Optional Enhancement)
 
-### Goal: Add Cleanlab TLM for hallucination detection and trustworthiness scoring
-
-#### Setup Cleanlab TLM
-- [ ] Get free API key from https://tlm.cleanlab.ai/
-- [ ] Install cleanlab-tlm (`pip install cleanlab-tlm`)
-- [ ] Set CLEANLAB_API_KEY environment variable
-- [ ] Test basic TLM scoring
-
-#### Integrate with Conversation Evaluation
-- [ ] Add TLM trustworthiness scoring to `run_conversation_eval.py`
-- [ ] Score each conversation response:
-  - [ ] Pass question + context + response to TLM
-  - [ ] Collect trustworthiness_score (0-1)
-  - [ ] Flag low-confidence responses (score < 0.7)
-- [ ] Add trustworthiness metrics to output
-- [ ] Compare TLM scores with DeepEval Faithfulness scores
-
-#### Analysis & Documentation
-- [ ] Identify correlation between TLM scores and DeepEval metrics
-- [ ] Document cases where TLM flags issues DeepEval misses
-- [ ] Add trustworthiness results to `CONVERSATION_BASELINE_RESULTS.md`
-- [ ] Update cost analysis (TLM API usage)
-
-**Success Criteria:**
-- TLM trustworthiness scores calculated for all 10 samples
-- Correlation analysis with DeepEval metrics completed
-- Low-confidence responses identified and analyzed
-
-**Estimated Time:** 1-2 hours
-
----
 
 ## Step 3: Expand Metrics and Dataset
 

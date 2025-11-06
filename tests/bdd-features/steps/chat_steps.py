@@ -187,3 +187,31 @@ def step_check_message_contains_date_info(context):
     has_date_info = any(keyword in content for keyword in date_keywords)
     assert has_date_info, \
         f"Expected message content to contain date information (months, years, or temporal verbs), but got: {context.response_json['content']}"
+
+
+@then('the message content should be relevant to the answer "{expected_answer}"')
+def step_check_message_relevance_to_answer(context, expected_answer):
+    from deepeval.metrics import AnswerRelevancyMetric
+
+    assert context.response_json is not None, "Response JSON is None"
+    assert 'content' in context.response_json, "Response does not contain 'content' field"
+
+    actual_output = context.response_json['content']
+    user_query = getattr(context, 'last_user_message', '')
+
+    test_case = LLMTestCase(
+        input=user_query,
+        actual_output=actual_output,
+        expected_output=expected_answer
+    )
+
+    metric = AnswerRelevancyMetric(threshold=0.5)
+
+    try:
+        metric.measure(test_case)
+        assert metric.score >= metric.threshold, (
+            f"Answer Relevancy score {metric.score:.2f} is below threshold {metric.threshold}. "
+            f"Reason: {metric.reason}"
+        )
+    except Exception as e:
+        raise AssertionError(f"Answer Relevancy evaluation failed: {str(e)}")
