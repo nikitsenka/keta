@@ -23,6 +23,13 @@ LLM_PROVIDER=local
 
 ## Local Development with Ollama
 
+### Pull Ollama model (if using docker compose)
+
+```bash
+  docker exec keta-ollama ollama pull mistral
+```
+
+
 ### Setup
 
 1. **Install Ollama** (if not using Docker):
@@ -48,6 +55,15 @@ LLM_PROVIDER=local
    OLLAMA_BASE_URL=http://localhost:11434
    OLLAMA_MODEL=mistral-nemo  # or 'mistral'
    MODEL_TEMPERATURE=0.0
+   ```
+4. ** Call the Ollama API to verify**:
+   ```bash
+   curl -X POST http://localhost:11434/v1/chat/completions \
+   -H "Content-Type: application/json" \
+   -d '{
+     "model": "mistral",
+     "messages": [{"role": "user", "content": "Hello, Ollama!"}]
+   }'
    ```
 
 ### Using Docker Compose

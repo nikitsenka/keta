@@ -199,7 +199,7 @@ def step_trigger_extraction_and_wait(context):
     assert response.status_code == 202, \
         f"Failed to trigger extraction. Status: {response.status_code}, Response: {response.text}"
 
-    max_wait = 30
+    max_wait = 240
     start_time = time.time()
 
     while time.time() - start_time < max_wait:
