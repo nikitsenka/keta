@@ -25,3 +25,4 @@ KETA enables users to:
 ## Documentation
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design patterns
+- [LLM_CONFIGURATION.md](docs/LLM_CONFIGURATION.md) - LLM provider setup and configuration guide

@@ -2,10 +2,17 @@
 Configuration management for KETA.
 """
 
+from enum import Enum
 from functools import lru_cache
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class LLMProvider(str, Enum):
+    LOCAL = "local"
+    AZURE = "azure"
+    OPENAI = "openai"
 
 
 class Settings(BaseSettings):
@@ -39,7 +46,22 @@ class Settings(BaseSettings):
     # Graph
     graph_name: str = "keta_graph"
 
-    # OpenAI
+    # LLM Configuration
+    llm_provider: LLMProvider = LLMProvider.LOCAL
+    model_temperature: float = 0.0
+    model_max_retries: int = 5
+    model_timeout: int = 120
+
+    # Azure Mistral (production)
+    azure_mistral_endpoint: Optional[str] = None
+    azure_mistral_api_key: Optional[str] = None
+    mistral_model: str = "mistral-large-latest"
+
+    # Local Ollama (development)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "mistral"
+
+    # OpenAI (optional fallback)
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o-mini"
     openai_temperature: float = 0.0

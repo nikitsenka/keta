@@ -1,4 +1,21 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: keta-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - keta-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   postgres:
     build:
       context: .
@@ -32,7 +49,14 @@ services:
     container_name: keta-api
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/keta_db
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-local}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
+      - AZURE_MISTRAL_ENDPOINT=${AZURE_MISTRAL_ENDPOINT:-}
+      - AZURE_MISTRAL_API_KEY=${AZURE_MISTRAL_API_KEY:-}
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-mistral-large-latest}
+      - MODEL_TEMPERATURE=${MODEL_TEMPERATURE:-0.0}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LOG_LEVEL=DEBUG
       - API_HOST=0.0.0.0
       - API_PORT=8000
@@ -43,6 +67,8 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
     depends_on:
       postgres:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     networks:
       - keta-network
@@ -84,6 +110,9 @@ volumes:
   postgres_data:
     driver: local
     name: keta_postgres_data
+  ollama_data:
+    driver: local
+    name: keta_ollama_data
 
 networks:
   keta-network:

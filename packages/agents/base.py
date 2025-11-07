@@ -7,11 +7,11 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 from langchain_core.language_models import BaseChatModel
-from langchain_openai import ChatOpenAI
 
 from packages.agents.state import AgentState
 from packages.shared.config import get_settings
 from packages.shared.database import DatabasePool
+from packages.shared.llm_factory import create_llm
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +39,14 @@ class BaseAgent(ABC):
         self.db_pool = db_pool
         self.settings = get_settings()
 
-        # Initialize LLM
         if llm is None:
-            self.llm = ChatOpenAI(
-                model=self.settings.openai_model,
-                temperature=self.settings.openai_temperature,
-                api_key=self.settings.openai_api_key,
-            )
+            self.llm = create_llm(self.settings)
         else:
             self.llm = llm
 
-        logger.info(f"Initialized {self.name} agent")
+        logger.info(
+            f"Initialized {self.name} agent with LLM provider: {self.settings.llm_provider.value}"
+        )
 
     @abstractmethod
     async def execute(self, state: AgentState) -> AgentState:
